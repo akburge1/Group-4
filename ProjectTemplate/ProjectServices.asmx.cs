@@ -1,66 +1,75 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Web;
-using System.Web.Services;
-using MySql.Data;
-using MySql.Data.MySqlClient;
+﻿// ProjectServices.asmx.cs
+using System;
 using System.Data;
+using System.Security.Cryptography;
+using System.Text;
+using System.Web.Services;
+using MySql.Data.MySqlClient;
 
 namespace ProjectTemplate
 {
-	[WebService(Namespace = "http://tempuri.org/")]
-	[WebServiceBinding(ConformsTo = WsiProfiles.BasicProfile1_1)]
-	[System.ComponentModel.ToolboxItem(false)]
-	[System.Web.Script.Services.ScriptService]
+    [WebService(Namespace = "http://tempuri.org/")]
+    [WebServiceBinding(ConformsTo = WsiProfiles.BasicProfile1_1)]
+    [System.ComponentModel.ToolboxItem(false)]
+    [System.Web.Script.Services.ScriptService]
+    public class ProjectServices : System.Web.Services.WebService
+    {
+        // ─────────────────────────────────────────────────────────────────────
+        // DATABASE CREDENTIALS – keep these in sync with your MySQL instance
+        private string dbID = "cis440summer2025team4";
+        private string dbPass = "cis440summer2025team4";
+        private string dbName = "cis440summer2025team4";
+        // ─────────────────────────────────────────────────────────────────────
 
-	public class ProjectServices : System.Web.Services.WebService
-	{
-		////////////////////////////////////////////////////////////////////////
-		///replace the values of these variables with your database credentials
-		////////////////////////////////////////////////////////////////////////
-		private string dbID = "cis440summer2025team4";
-		private string dbPass = "cis440summer2025team4";
-		private string dbName = "cis440summer2025team4";
-		////////////////////////////////////////////////////////////////////////
-		
-		////////////////////////////////////////////////////////////////////////
-		///call this method anywhere that you need the connection string!
-		////////////////////////////////////////////////////////////////////////
-		private string getConString() {
-			return "SERVER=107.180.1.16; PORT=3306; DATABASE=" + dbName+"; UID=" + dbID + "; PASSWORD=" + dbPass;
-		}
-		////////////////////////////////////////////////////////////////////////
+        private string getConString()
+        {
+            return $"SERVER=107.180.1.16;PORT=3306;DATABASE={dbName};UID={dbID};PASSWORD={dbPass}";
+        }
 
+        // --------------------------------------------------------------------
+        // EXISTING CONNECTIVITY TEST – unchanged
+        [WebMethod(EnableSession = true)]
+        public string TestConnection()
+        {
+            try
+            {
+                string testQuery = "SELECT 1";
+                using (MySqlConnection con = new MySqlConnection(getConString()))
+                {
+                    MySqlCommand cmd = new MySqlCommand(testQuery, con);
+                    con.Open();
+                    cmd.ExecuteScalar();
+                }
+                return "Success!";
+            }
+            catch (Exception e)
+            {
+                return "Connection failed: " + e.Message;
+            }
+        }
 
+        // --------------------------------------------------------------------
+        // NEW LOGIN END‑POINT
+        // Returns   "admin"     → admin user
+        //           "employee"  → standard user
+        //           "invalid"   → credentials rejected
+        [WebMethod(EnableSession = true)]
+        public string Login(string username, string password)
+        {
+            bool isAdmin;
+            int userId;
 
-		/////////////////////////////////////////////////////////////////////////
-		//don't forget to include this decoration above each method that you want
-		//to be exposed as a web service!
-		[WebMethod(EnableSession = true)]
-		/////////////////////////////////////////////////////////////////////////
-		public string TestConnection()
-		{
-			try
-			{
-				string testQuery = "select * from test";
+            if (DatabaseHelper.TryAuthenticate(getConString(), username, password, out isAdmin, out userId))
+            {
+                // Persist minimal session data
+                Session["userID"] = userId;
+                Session["isAdmin"] = isAdmin;
+                Session.Timeout = 30;          // minutes
 
-				////////////////////////////////////////////////////////////////////////
-				///here's an example of using the getConString method!
-				////////////////////////////////////////////////////////////////////////
-				MySqlConnection con = new MySqlConnection(getConString());
-				////////////////////////////////////////////////////////////////////////
+                return isAdmin ? "admin" : "employee";
+            }
 
-				MySqlCommand cmd = new MySqlCommand(testQuery, con);
-				MySqlDataAdapter adapter = new MySqlDataAdapter(cmd);
-				DataTable table = new DataTable();
-				adapter.Fill(table);
-				return "Success!";
-			}
-			catch (Exception e)
-			{
-				return "Something went wrong, please check your credentials and db name and try again.  Error: "+e.Message;
-			}
-		}
-	}
+            return "invalid";
+        }
+    }
 }
