@@ -1,8 +1,6 @@
 ﻿// ProjectServices.asmx.cs
 using System;
 using System.Data;
-using System.Security.Cryptography;
-using System.Text;
 using System.Web.Services;
 using MySql.Data.MySqlClient;
 

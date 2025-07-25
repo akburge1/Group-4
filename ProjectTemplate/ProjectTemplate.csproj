@@ -131,9 +131,11 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Content Include="admin.html" />
     <Content Include="Global.asax" />
     <Content Include="index.html" />
     <Content Include="login.html" />
+    <Content Include="login.js" />
     <Content Include="ProjectServices.asmx" />
     <Content Include="style.css" />
     <Content Include="Web.config" />
