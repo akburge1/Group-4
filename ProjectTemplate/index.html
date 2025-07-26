@@ -4,9 +4,29 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>User Dashboard</title>
+	<link rel="stylesheet" href="style.css">
 </head>
 <body>
-	<h2>User Dashboard</h2>
-	<p>Placeholder</p>
+	<div class="dashboard">
+		<h1>User Dashboard</h1>
+
+		<div class="prompt-box">
+			<h2>This Week’s Prompt</h2>
+			<p id="weekly-prompt">Loading prompt...</p>
+		</div>
+
+		<form class="feedback-form">
+			<!--method="post" action="/api/submit-feedback">-->
+			<label for="feedback">Feedback:</label>
+			<textarea id="feedback" name="feedback" rows="5" placeholder="Type your response here..." required></textarea>
+
+			<label for="name">Name (optional):</label>
+			<input type="text" id="name" name="name" placeholder="Leave blank to stay anonymous" />
+
+			<button type="submit">Submit Feedback</button>
+		</form>
+	</div>
+
+	<script src="index.js"></script>
 </body>
 </html>
