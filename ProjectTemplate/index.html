@@ -1,10 +1,10 @@
 ﻿<!DOCTYPE html>
 <html lang="en">
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<title>User Dashboard</title>
-	<link rel="stylesheet" href="style.css">
+	<link rel="stylesheet" href="style.css" />
 </head>
 <body>
 	<div class="dashboard">
@@ -16,12 +16,14 @@
 		</div>
 
 		<form class="feedback-form">
-			<!--method="post" action="/api/submit-feedback">-->
+
 			<label for="feedback">Feedback:</label>
 			<textarea id="feedback" name="feedback" rows="5" placeholder="Type your response here..." required></textarea>
 
-			<label for="name">Name (optional):</label>
-			<input type="text" id="name" name="name" placeholder="Leave blank to stay anonymous" />
+			<div class="form-row anon-row">
+				<input type="checkbox" id="isAnonymous" name="isAnonymous" checked />
+				<label for="isAnonymous">Submit anonymously</label>
+			</div>
 
 			<button type="submit">Submit Feedback</button>
 		</form>
