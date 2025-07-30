@@ -3,7 +3,13 @@ function displayPrompt() {
     if (promptElement) {
         promptElement.textContent = getWeeklyPrompt();
     }
-    //fetch('/api/prompt')
+    fetch("/ProjectServices.asmx/GetWeeklyPrompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weekNumber: 1 }) // example week
+    })
+        .then(res => res.json())
+        .then(data => console.log(data.d)); // .d = SOAP response data
 
 }
 
