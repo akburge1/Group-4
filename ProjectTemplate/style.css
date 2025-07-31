@@ -181,11 +181,13 @@ button {
 }
 
 .dashboard th {
-  background-color: powderblue;
+  background-color: cornflowerblue;
+  color: white;
 }
 
 .dashboard tr:nth-child(odd) {
   background-color: rgba(150, 212, 212, 0.4);
+  background-color:#e8f0fe; 
 }
 
 .dashboard tr:hover {
