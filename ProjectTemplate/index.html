@@ -20,11 +20,15 @@
 			<label for="feedback">Feedback:</label>
 			<textarea id="feedback" name="feedback" rows="5" placeholder="Type your response here..." required></textarea>
 
-			<label for="name">Name (optional):</label>
-			<input type="text" id="name" name="name" placeholder="Leave blank to stay anonymous" />
+			<div class="form-row anon-row">
+				<input type="checkbox" id="isAnonymous" name="isAnonymous" checked />
+				<label for="isAnonymous">Submit anonymously</label>
+			</div>
 
 			<button type="submit">Submit Feedback</button>
+
 		</form>
+
 	</div>
 
 	<script src="index.js"></script>
