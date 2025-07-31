@@ -1,41 +1,46 @@
-// Placeholder for weekly prompt service
-function getWeeklyPrompt() {
-    return "Placeholder prompt: your real weekly prompt will appear here once connected.";
-}
-
 function displayPrompt() {
     const promptElement = document.getElementById("weekly-prompt");
-    if (promptElement) {
-        promptElement.textContent = getWeeklyPrompt();
-    }
-    // Future: fetch('/api/prompt').then(...)
+
+    fetch("/ProjectServices.asmx/GetCurrentPrompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+    })
+        .then(res => res.json())
+        .then(data => {
+            const prompt = data?.d;
+            if (prompt && prompt.text) {
+                promptElement.textContent = prompt.text;
+                currentPromptId = prompt.id; // store for use in submit
+            } else {
+                promptElement.textContent = "Unable to load prompt.";
+            }
+        })
+        .catch(() => {
+            promptElement.textContent = "Error loading prompt.";
+        });
 }
+
 
 function handleFormSubmission() {
     const form = document.querySelector(".feedback-form");
     if (!form) return;
 
     form.addEventListener("submit", function (e) {
-        e.preventDefault();
-
-        const feedback = (document.getElementById("feedback")?.value || "").trim();
-        const isAnonymous = document.getElementById("isAnonymous")?.checked ?? true;
-
-        if (!feedback) {
-            alert("Please enter feedback before submitting.");
-            return;
-        }
-
-        // Placeholder for eventual POST
-        // fetch('/api/submit-feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ feedback, isAnonymous }) })
-
-        alert(`Feedback submitted!\n\nAnonymous: ${isAnonymous ? "Yes" : "No"}`);
-        form.reset(); // resets to initial defaults (anonymous remains checked)
-        document.getElementById("isAnonymous").checked = true; // ensure default after reset
+        e.preventDefault(); // Prevent actual HTTP POST
+        alert("Feedback submitted!"); //testing
+        form.reset();
     });
 }
+
+
 
 document.addEventListener("DOMContentLoaded", () => {
     displayPrompt();
     handleFormSubmission();
+
+    const anonCheckbox = document.getElementById("isAnonymous");
+    if (anonCheckbox) {
+        anonCheckbox.addEventListener("change", toggleNameField);
+        toggleNameField(); // set initial state
+    }
 });
