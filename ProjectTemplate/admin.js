@@ -1,18 +1,4 @@
-//When the anonymous checkbox is unchecked, display the name field
-function toggleNameField() {
-    const isAnonymous = document.getElementById("isAnonymous")?.checked;
-    const nameRow = document.querySelector(".name-row");
-    if (nameRow) {
-        nameRow.style.display = isAnonymous ? "none" : "block";
-    }
-}
 
-
-function getWeeklyPrompt() {
-    return "Placeholder prompt: your real weekly prompt will appear here once connected.";
-}
-
-//Show the weekly prompt from the database
 function displayPrompt() {
     const promptElement = document.getElementById("weekly-prompt");
 
@@ -24,9 +10,8 @@ function displayPrompt() {
         .then(data => {
             const prompt = data?.d;
             if (prompt && prompt.text) {
-                promptElement.textContent = prompt.text;
-                currentPromptId = prompt.id; // store for use in submit
-                fetchFeedback(currentPromptId);
+                promptElement.textContent = prompt.Text;
+                displayFeedback();
             } else {
                 promptElement.textContent = "Unable to load prompt.";
             }
@@ -35,15 +20,15 @@ function displayPrompt() {
             promptElement.textContent = "Error loading prompt.";
         });
 }
+function displayFeedback(feedbackList) {
+    const tbody = document.getElementById("feedback-list");
+    tbody.innerHTML = "";
+    feedbackList.forEach(item => {
+        const row = document.createElement("tr");
+        row.innerHTML = `<td>${item.dateReceived}</td><td>${item.message}</td>`;
+        tbody.appendChild(row);
+    });
+}
 
+document.addEventListener("DOMContentLoaded", displayPrompt);
 
-document.addEventListener("DOMContentLoaded", () => {
-    displayPrompt();
-    handleFormSubmission();
-
-    const anonCheckbox = document.getElementById("isAnonymous");
-    if (anonCheckbox) {
-        anonCheckbox.addEventListener("change", toggleNameField);
-        toggleNameField(); // set initial state
-    }
-});
