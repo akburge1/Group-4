@@ -6,19 +6,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard</title>
     <link rel="stylesheet" href="style.css">
-    <script src="admin.js"></script>
+    <script src="admin.js" defer></script>
 
 </head>
 
-<body style="align-items: flex-start;"></bodystyle>>
+<body style="align-items: flex-start;">
+    </bodystyle>>
     <div class="dashboard">
         <h1>Admin Dashboard</h1>
-        <h2>Week Date</h2>
-       <p id="weekly-prompt">Prompt of the Week</p>
+        <h2 id="week-timeframe"></h2>
+        <p id="weekly-prompt">Loading prompt...</p>
         <table>
-           <thead>
+            <thead>
                 <tr>
                     <th>Date Received</th>
+                    <th>User</th>
                     <th>Message</th>
                 </tr>
             </thead>
