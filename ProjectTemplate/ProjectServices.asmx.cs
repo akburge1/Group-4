@@ -16,6 +16,25 @@ namespace ProjectTemplate
         public string weekStartIso { get; set; }
     }
 
+    public class FeedbackItem
+    {
+        public int id { get; set; }
+        public string dateSubmitted { get; set; }   // ISO-like string
+        public string displayName { get; set; }     // "Anonymous" if isAnonymous = true
+        public bool isAnonymous { get; set; }
+        public string message { get; set; }
+
+        public int promptId { get; set; }
+        public string promptText { get; set; }
+        public string weekStartIso { get; set; }    // from Prompts.date_posted
+    }
+
+    public class FeedbackListResult
+    {
+        public int totalCount { get; set; }
+        public List<FeedbackItem> items { get; set; }
+    }
+
     [WebService(Namespace = "http://tempuri.org/")]
     [WebServiceBinding(ConformsTo = WsiProfiles.BasicProfile1_1)]
     [System.ComponentModel.ToolboxItem(false)]
@@ -366,6 +385,96 @@ namespace ProjectTemplate
             catch (Exception ex)
             {
                 return "error: " + ex.Message;
+            }
+        }
+
+        // ADMIN-ONLY: Read ALL feedback (paged) with prompt context.
+        // Returns { totalCount, items: [ { id, dateSubmitted, displayName, isAnonymous, message, promptId, promptText, weekStartIso }, ... ] }
+        [WebMethod(EnableSession = true)]
+        [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
+        public object GetAllFeedback(int page, int pageSize)
+        {
+            // Require admin
+            if (!(Session["isAdmin"] is bool isAdmin && isAdmin))
+                return new { error = "unauthorized" };
+
+            // Normalize paging
+            if (page <= 0) page = 1;
+            if (pageSize <= 0) pageSize = 100;
+            if (pageSize > 500) pageSize = 500;
+            int offset = (page - 1) * pageSize;
+
+            try
+            {
+                using (MySqlConnection con = new MySqlConnection(getConString()))
+                {
+                    con.Open();
+
+                    // Total count (all feedback)
+                    int total = 0;
+                    using (var cnt = new MySqlCommand(
+                        @"SELECT COUNT(*) FROM Feedback;", con))
+                    {
+                        total = Convert.ToInt32(cnt.ExecuteScalar());
+                    }
+
+                    var items = new List<FeedbackItem>();
+                    using (var cmd = new MySqlCommand(
+                        @"SELECT f.id,
+                                 f.date_submitted,
+                                 f.is_anonymous,
+                                 u.username,
+                                 f.message,
+                                 f.prompt_id,
+                                 p.question_text,
+                                 p.date_posted AS week_start
+                          FROM Feedback f
+                          LEFT JOIN Users u ON u.id = f.user_id
+                          LEFT JOIN Prompts p ON p.id = f.prompt_id
+                          ORDER BY f.date_submitted DESC
+                          LIMIT @limit OFFSET @offset;", con))
+                    {
+                        cmd.Parameters.AddWithValue("@limit", pageSize);
+                        cmd.Parameters.AddWithValue("@offset", offset);
+
+                        using (var rdr = cmd.ExecuteReader())
+                        {
+                            while (rdr.Read())
+                            {
+                                bool isAnon = rdr.GetBoolean("is_anonymous");
+                                DateTime dt = rdr.GetDateTime("date_submitted");
+                                DateTime? wk = rdr.IsDBNull(rdr.GetOrdinal("week_start"))
+                                    ? (DateTime?)null : rdr.GetDateTime("week_start");
+
+                                string nameFromDb = rdr.IsDBNull(rdr.GetOrdinal("username")) ? null : rdr.GetString("username");
+                                string displayName = isAnon ? "Anonymous" :
+                                    (string.IsNullOrWhiteSpace(nameFromDb) ? "(unknown user)" : nameFromDb);
+
+                                items.Add(new FeedbackItem
+                                {
+                                    id = rdr.GetInt32("id"),
+                                    dateSubmitted = dt.ToString("yyyy-MM-ddTHH:mm:ss"),
+                                    isAnonymous = isAnon,
+                                    displayName = displayName,
+                                    message = rdr.IsDBNull(rdr.GetOrdinal("message")) ? "" : rdr.GetString("message"),
+                                    promptId = rdr.GetInt32("prompt_id"),
+                                    promptText = rdr.IsDBNull(rdr.GetOrdinal("question_text")) ? "" : rdr.GetString("question_text"),
+                                    weekStartIso = wk.HasValue ? wk.Value.ToString("yyyy-MM-dd") : ""
+                                });
+                            }
+                        }
+                    }
+
+                    return new FeedbackListResult
+                    {
+                        totalCount = total,
+                        items = items
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                return new { error = "error", detail = ex.Message };
             }
         }
     }
