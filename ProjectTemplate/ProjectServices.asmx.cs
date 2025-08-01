@@ -1,23 +1,26 @@
 ﻿// ProjectServices.asmx.cs
 using MySql.Data.MySqlClient;
 using System;
-using System.Data;
-using System.Data.SqlClient;
+using System.Collections.Generic;
 using System.Web.Services;
+using System.Web.Script.Services;
 
 namespace ProjectTemplate
 {
+    // Return shape uses lower-case names to match front-end usage (prompt.id, prompt.text).
     public class PromptInfo
     {
-        public int Id { get; set; }
-        public string Text { get; set; }
+        public int id { get; set; }
+        public string text { get; set; }
+        // Optional: expose the calculated week start (ISO) for diagnostics/admin display.
+        public string weekStartIso { get; set; }
     }
 
     [WebService(Namespace = "http://tempuri.org/")]
     [WebServiceBinding(ConformsTo = WsiProfiles.BasicProfile1_1)]
     [System.ComponentModel.ToolboxItem(false)]
-    [System.Web.Script.Services.ScriptService]
-    public class ProjectServices : System.Web.Services.WebService
+    [ScriptService]
+    public class ProjectServices : WebService
     {
         // ─────────────────────────────────────────────────────────────────────
         // DATABASE CREDENTIALS – keep these in sync with your MySQL instance
@@ -31,19 +34,236 @@ namespace ProjectTemplate
             return $"SERVER=107.180.1.16;PORT=3306;DATABASE={dbName};UID={dbID};PASSWORD={dbPass}";
         }
 
-        // --------------------------------------------------------------------
-        // EXISTING CONNECTIVITY TEST – unchanged
+        // Try to resolve the Eastern/Detroit zone even if hosted on Linux.
+        private static TimeZoneInfo GetEasternTz()
+        {
+            try { return TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"); } // Windows
+            catch
+            {
+                try { return TimeZoneInfo.FindSystemTimeZoneById("America/Detroit"); }   // Linux
+                catch { return TimeZoneInfo.Utc; }
+            }
+        }
+
+        // Compute Monday 00:00 (local Eastern) for "now".
+        private static DateTime GetCurrentWeekStartEastern()
+        {
+            var tz = GetEasternTz();
+            var nowEastern = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+
+            // ISO week: Monday=1 ... Sunday=7
+            int dayOfWeek = (int)nowEastern.DayOfWeek; // Sunday=0 ... Saturday=6
+            int isoDow = dayOfWeek == 0 ? 7 : dayOfWeek; // map Sunday(0) -> 7
+            var monday = nowEastern.Date.AddDays(-(isoDow - 1)); // back to Monday
+            return new DateTime(monday.Year, monday.Month, monday.Day, 0, 0, 0, DateTimeKind.Unspecified);
+        }
+
+        // Resolve the prompt for the current week.
+        // Stateful: stamps the chosen prompt into Prompts.date_posted = <weekStart> and sets is_used = 1.
+        // Uses a MySQL named lock so only one request stamps per week.
+        private PromptInfo ResolveOrStampWeeklyPrompt(MySqlConnection con)
+        {
+            DateTime weekStartLocal = GetCurrentWeekStartEastern();
+
+            // 1) If this week is already stamped, return it.
+            using (var checkExisting = new MySqlCommand(
+                @"SELECT id, question_text
+                  FROM Prompts
+                  WHERE date_posted = @weekStart
+                  LIMIT 1;", con))
+            {
+                checkExisting.Parameters.AddWithValue("@weekStart", weekStartLocal);
+                using (var rdr = checkExisting.ExecuteReader())
+                {
+                    if (rdr.Read())
+                    {
+                        return new PromptInfo
+                        {
+                            id = rdr.GetInt32("id"),
+                            text = rdr.GetString("question_text"),
+                            weekStartIso = weekStartLocal.ToString("yyyy-MM-dd")
+                        };
+                    }
+                }
+            }
+
+            // 2) Not stamped yet: acquire a named lock to avoid races.
+            string lockName = "weekly_prompt_" + weekStartLocal.ToString("yyyyMMdd");
+            using (var getLock = new MySqlCommand("SELECT GET_LOCK(@name, 5);", con))
+            {
+                getLock.Parameters.AddWithValue("@name", lockName);
+                var lockResult = getLock.ExecuteScalar();
+                bool haveLock = lockResult != null && Convert.ToInt32(lockResult) == 1;
+
+                if (haveLock)
+                {
+                    try
+                    {
+                        // Re-check inside the lock (TOCTOU guard).
+                        using (var recheck = new MySqlCommand(
+                            @"SELECT id, question_text
+                              FROM Prompts
+                              WHERE date_posted = @weekStart
+                              LIMIT 1;", con))
+                        {
+                            recheck.Parameters.AddWithValue("@weekStart", weekStartLocal);
+                            using (var rdr = recheck.ExecuteReader())
+                            {
+                                if (rdr.Read())
+                                {
+                                    return new PromptInfo
+                                    {
+                                        id = rdr.GetInt32("id"),
+                                        text = rdr.GetString("question_text"),
+                                        weekStartIso = weekStartLocal.ToString("yyyy-MM-dd")
+                                    };
+                                }
+                            }
+                        }
+
+                        // Build candidate set: all prompts not yet used.
+                        // (We don't filter by insert date because stamping fixes the week's choice.)
+                        int chosenId = -1;
+                        string chosenText = null;
+
+                        using (var pick = new MySqlCommand(
+                            @"SELECT id, question_text
+                              FROM Prompts
+                              WHERE is_used = 0
+                              ORDER BY RAND()
+                              LIMIT 1;", con))
+                        using (var rdr = pick.ExecuteReader())
+                        {
+                            if (rdr.Read())
+                            {
+                                chosenId = rdr.GetInt32("id");
+                                chosenText = rdr.GetString("question_text");
+                            }
+                        }
+
+                        // If none remain, reset cycle and pick again.
+                        if (chosenId == -1)
+                        {
+                            using (var reset = new MySqlCommand(
+                                @"UPDATE Prompts SET is_used = 0, date_posted = NULL;", con))
+                            {
+                                reset.ExecuteNonQuery();
+                            }
+
+                            using (var pick2 = new MySqlCommand(
+                                @"SELECT id, question_text
+                                  FROM Prompts
+                                  ORDER BY RAND()
+                                  LIMIT 1;", con))
+                            using (var rdr = pick2.ExecuteReader())
+                            {
+                                if (rdr.Read())
+                                {
+                                    chosenId = rdr.GetInt32("id");
+                                    chosenText = rdr.GetString("question_text");
+                                }
+                            }
+                        }
+
+                        if (chosenId == -1)
+                            return null; // no prompts in DB
+
+                        // Stamp the choice for this week and mark used.
+                        using (var stamp = new MySqlCommand(
+                            @"UPDATE Prompts
+                              SET date_posted = @weekStart, is_used = 1
+                              WHERE id = @id;", con))
+                        {
+                            stamp.Parameters.AddWithValue("@weekStart", weekStartLocal);
+                            stamp.Parameters.AddWithValue("@id", chosenId);
+                            stamp.ExecuteNonQuery();
+                        }
+
+                        return new PromptInfo
+                        {
+                            id = chosenId,
+                            text = chosenText ?? string.Empty,
+                            weekStartIso = weekStartLocal.ToString("yyyy-MM-dd")
+                        };
+                    }
+                    finally
+                    {
+                        using (var rel = new MySqlCommand("SELECT RELEASE_LOCK(@name);", con))
+                        {
+                            rel.Parameters.AddWithValue("@name", lockName);
+                            rel.ExecuteScalar();
+                        }
+                    }
+                }
+                else
+                {
+                    // Couldn't acquire lock; another request is doing the stamping.
+                    // Small wait and read the stamped row.
+                    System.Threading.Thread.Sleep(200);
+
+                    using (var waitRead = new MySqlCommand(
+                        @"SELECT id, question_text
+                          FROM Prompts
+                          WHERE date_posted = @weekStart
+                          LIMIT 1;", con))
+                    {
+                        waitRead.Parameters.AddWithValue("@weekStart", weekStartLocal);
+                        using (var rdr = waitRead.ExecuteReader())
+                        {
+                            if (rdr.Read())
+                            {
+                                return new PromptInfo
+                                {
+                                    id = rdr.GetInt32("id"),
+                                    text = rdr.GetString("question_text"),
+                                    weekStartIso = weekStartLocal.ToString("yyyy-MM-dd")
+                                };
+                            }
+                        }
+                    }
+
+                    // As a final fallback, just return any prompt (should be rare).
+                    using (var any = new MySqlCommand(
+                        @"SELECT id, question_text
+                          FROM Prompts
+                          ORDER BY id ASC
+                          LIMIT 1;", con))
+                    using (var rdr = any.ExecuteReader())
+                    {
+                        if (rdr.Read())
+                        {
+                            return new PromptInfo
+                            {
+                                id = rdr.GetInt32("id"),
+                                text = rdr.GetString("question_text"),
+                                weekStartIso = weekStartLocal.ToString("yyyy-MM-dd")
+                            };
+                        }
+                    }
+                    return null;
+                }
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // ENDPOINTS
+        // ─────────────────────────────────────────────────────────────────────
+
+        // Connectivity test
         [WebMethod(EnableSession = true)]
+        [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
         public string TestConnection()
         {
             try
             {
-                string testQuery = "SELECT 1";
+                const string testQuery = "SELECT 1";
                 using (MySqlConnection con = new MySqlConnection(getConString()))
                 {
-                    MySqlCommand cmd = new MySqlCommand(testQuery, con);
-                    con.Open();
-                    cmd.ExecuteScalar();
+                    using (var cmd = new MySqlCommand(testQuery, con))
+                    {
+                        con.Open();
+                        cmd.ExecuteScalar();
+                    }
                 }
                 return "Success!";
             }
@@ -53,12 +273,9 @@ namespace ProjectTemplate
             }
         }
 
-        // --------------------------------------------------------------------
-        // NEW LOGIN END‑POINT
-        // Returns   "admin"     → admin user
-        //           "employee"  → standard user
-        //           "invalid"   → credentials rejected
+        // Returns: "admin", "employee", or "invalid"
         [WebMethod(EnableSession = true)]
+        [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
         public string Login(string username, string password)
         {
             bool isAdmin;
@@ -66,18 +283,18 @@ namespace ProjectTemplate
 
             if (DatabaseHelper.TryAuthenticate(getConString(), username, password, out isAdmin, out userId))
             {
-                // Persist minimal session data
                 Session["userID"] = userId;
                 Session["isAdmin"] = isAdmin;
-                Session.Timeout = 30;          // minutes
-
+                Session.Timeout = 30;  // minutes
                 return isAdmin ? "admin" : "employee";
             }
 
             return "invalid";
         }
 
+        // Weekly "current prompt" (stateful stamping; random selection; wraps after full cycle)
         [WebMethod(EnableSession = true)]
+        [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
         public PromptInfo GetCurrentPrompt()
         {
             try
@@ -85,37 +302,22 @@ namespace ProjectTemplate
                 using (MySqlConnection con = new MySqlConnection(getConString()))
                 {
                     con.Open();
-                    string query = "SELECT id, question_text FROM Prompts ORDER BY date_posted DESC LIMIT 1";
-                    using (MySqlCommand cmd = new MySqlCommand(query, con))
-                    {
-                        using (MySqlDataReader rdr = cmd.ExecuteReader())
-                        {
-                            if (rdr.Read())
-                            {
-                                return new PromptInfo
-                                {
-                                    Id = rdr.GetInt32("id"),
-                                    Text = rdr.GetString("question_text")
-                                };
-                            }
-                        }
-                    }
+                    return ResolveOrStampWeeklyPrompt(con);
                 }
-                return null;
             }
-            catch (Exception ex)
+            catch
             {
                 return null;
             }
         }
 
+        // Binds feedback to THIS WEEK'S stamped prompt; prevents duplicate submits per user/prompt.
         [WebMethod(EnableSession = true)]
+        [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
         public string SubmitFeedback(string message, bool isAnonymous)
         {
             if (Session["userID"] == null)
-            {
                 return "not_authenticated";
-            }
 
             int userId = (int)Session["userID"];
 
@@ -125,46 +327,37 @@ namespace ProjectTemplate
                 {
                     con.Open();
 
-                    // Get current prompt id
-                    string promptQuery = "SELECT id FROM Prompts ORDER BY date_posted DESC LIMIT 1";
-                    int? promptId = null;
-                    using (MySqlCommand cmd = new MySqlCommand(promptQuery, con))
-                    {
-                        object result = cmd.ExecuteScalar();
-                        if (result != null)
-                        {
-                            promptId = Convert.ToInt32(result);
-                        }
-                    }
-
-                    if (promptId == null)
-                    {
+                    // Resolve/stamp this week's prompt (random selection inside if needed)
+                    var prompt = ResolveOrStampWeeklyPrompt(con);
+                    if (prompt == null)
                         return "no_current_prompt";
-                    }
 
-                    // Check if already submitted
-                    string checkQuery = "SELECT COUNT(*) FROM Feedback WHERE user_id = @userId AND prompt_id = @promptId";
-                    using (MySqlCommand cmd = new MySqlCommand(checkQuery, con))
+                    int promptId = prompt.id;
+
+                    // Prevent duplicate submission for this user and this week's prompt.
+                    using (var check = new MySqlCommand(
+                        @"SELECT COUNT(*)
+                          FROM Feedback
+                          WHERE user_id = @uid AND prompt_id = @pid;", con))
                     {
-                        cmd.Parameters.AddWithValue("@userId", userId);
-                        cmd.Parameters.AddWithValue("@promptId", promptId);
-                        int count = Convert.ToInt32(cmd.ExecuteScalar());
+                        check.Parameters.AddWithValue("@uid", userId);
+                        check.Parameters.AddWithValue("@pid", promptId);
+
+                        int count = Convert.ToInt32(check.ExecuteScalar());
                         if (count > 0)
-                        {
                             return "already_submitted";
-                        }
                     }
 
-                    // Insert
-                    string insertQuery = @"INSERT INTO Feedback (prompt_id, user_id, message, is_anonymous)
-                                           VALUES (@promptId, @userId, @message, @isAnonymous)";
-                    using (MySqlCommand cmd = new MySqlCommand(insertQuery, con))
+                    // Insert feedback
+                    using (var insert = new MySqlCommand(
+                        @"INSERT INTO Feedback (prompt_id, user_id, message, is_anonymous)
+                          VALUES (@pid, @uid, @msg, @anon);", con))
                     {
-                        cmd.Parameters.AddWithValue("@promptId", promptId);
-                        cmd.Parameters.AddWithValue("@userId", userId);
-                        cmd.Parameters.AddWithValue("@message", message);
-                        cmd.Parameters.AddWithValue("@isAnonymous", isAnonymous);
-                        cmd.ExecuteNonQuery();
+                        insert.Parameters.AddWithValue("@pid", promptId);
+                        insert.Parameters.AddWithValue("@uid", userId);
+                        insert.Parameters.AddWithValue("@msg", message ?? string.Empty);
+                        insert.Parameters.AddWithValue("@anon", isAnonymous);
+                        insert.ExecuteNonQuery();
                     }
 
                     return "success";
