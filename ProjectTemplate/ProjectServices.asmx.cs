@@ -7,12 +7,10 @@ using System.Web.Script.Services;
 
 namespace ProjectTemplate
 {
-    // Return shape uses lower-case names to match front-end usage (prompt.id, prompt.text).
     public class PromptInfo
     {
         public int id { get; set; }
         public string text { get; set; }
-        // Optional: expose the calculated week start (ISO) for diagnostics/admin display.
         public string weekStartIso { get; set; }
     }
 
