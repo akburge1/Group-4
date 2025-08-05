@@ -2,6 +2,7 @@
 using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Web.Services;
 using System.Web.Script.Services;
 
@@ -51,7 +52,7 @@ namespace ProjectTemplate
             return $"SERVER=107.180.1.16;PORT=3306;DATABASE={dbName};UID={dbID};PASSWORD={dbPass}";
         }
 
-        // Try to resolve the Eastern/Detroit zone even if hosted on Linux.
+        // Try to resolve the Eastern/Detroit zone
         private static TimeZoneInfo GetEasternTz()
         {
             try { return TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"); } // Windows
@@ -82,7 +83,7 @@ namespace ProjectTemplate
         {
             DateTime weekStartLocal = GetCurrentWeekStartEastern();
 
-            // 1) If this week is already stamped, return it.
+            // If this week is already stamped, return it.
             using (var checkExisting = new MySqlCommand(
                 @"SELECT id, question_text
                   FROM Prompts
@@ -104,7 +105,7 @@ namespace ProjectTemplate
                 }
             }
 
-            // 2) Not stamped yet: acquire a named lock to avoid races.
+            // Acquire a named lock to avoid races.
             string lockName = "weekly_prompt_" + weekStartLocal.ToString("yyyyMMdd");
             using (var getLock = new MySqlCommand("SELECT GET_LOCK(@name, 5);", con))
             {
@@ -116,7 +117,7 @@ namespace ProjectTemplate
                 {
                     try
                     {
-                        // Re-check inside the lock (TOCTOU guard).
+                        // Re-check inside the lock
                         using (var recheck = new MySqlCommand(
                             @"SELECT id, question_text
                               FROM Prompts
@@ -138,8 +139,7 @@ namespace ProjectTemplate
                             }
                         }
 
-                        // Build candidate set: all prompts not yet used.
-                        // (We don't filter by insert date because stamping fixes the week's choice.)
+                        // Build candidate set
                         int chosenId = -1;
                         string chosenText = null;
 
@@ -309,6 +309,23 @@ namespace ProjectTemplate
             return "invalid";
         }
 
+        // Logout to invalidate session
+        [WebMethod(EnableSession = true)]
+        [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
+        public string Logout()
+        {
+            try
+            {
+                Session.Clear();
+                Session.Abandon();
+                return "logged_out";
+            }
+            catch
+            {
+                return "error";
+            }
+        }
+
         // Weekly "current prompt" (stateful stamping; random selection; wraps after full cycle)
         [WebMethod(EnableSession = true)]
         [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
@@ -344,7 +361,7 @@ namespace ProjectTemplate
                 {
                     con.Open();
 
-                    // Resolve/stamp this week's prompt (random selection inside if needed)
+                    // Resolve/stamp this week's prompt
                     var prompt = ResolveOrStampWeeklyPrompt(con);
                     if (prompt == null)
                         return "no_current_prompt";
@@ -387,7 +404,7 @@ namespace ProjectTemplate
         }
 
         // ADMIN-ONLY: Read ALL feedback (paged) with prompt context.
-        // Returns { totalCount, items: [ { id, dateSubmitted, displayName, isAnonymous, message, promptId, promptText, weekStartIso }, ... ] }
+        // Returns { totalCount, items: [ ... ] }
         [WebMethod(EnableSession = true)]
         [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
         public object GetAllFeedback(int page, int pageSize)
@@ -416,52 +433,7 @@ namespace ProjectTemplate
                         total = Convert.ToInt32(cnt.ExecuteScalar());
                     }
 
-                    var items = new List<FeedbackItem>();
-                    using (var cmd = new MySqlCommand(
-                        @"SELECT f.id,
-                                 f.date_submitted,
-                                 f.is_anonymous,
-                                 u.username,
-                                 f.message,
-                                 f.prompt_id,
-                                 p.question_text,
-                                 p.date_posted AS week_start
-                          FROM Feedback f
-                          LEFT JOIN Users u ON u.id = f.user_id
-                          LEFT JOIN Prompts p ON p.id = f.prompt_id
-                          ORDER BY f.date_submitted DESC
-                          LIMIT @limit OFFSET @offset;", con))
-                    {
-                        cmd.Parameters.AddWithValue("@limit", pageSize);
-                        cmd.Parameters.AddWithValue("@offset", offset);
-
-                        using (var rdr = cmd.ExecuteReader())
-                        {
-                            while (rdr.Read())
-                            {
-                                bool isAnon = rdr.GetBoolean("is_anonymous");
-                                DateTime dt = rdr.GetDateTime("date_submitted");
-                                DateTime? wk = rdr.IsDBNull(rdr.GetOrdinal("week_start"))
-                                    ? (DateTime?)null : rdr.GetDateTime("week_start");
-
-                                string nameFromDb = rdr.IsDBNull(rdr.GetOrdinal("username")) ? null : rdr.GetString("username");
-                                string displayName = isAnon ? "Anonymous" :
-                                    (string.IsNullOrWhiteSpace(nameFromDb) ? "(unknown user)" : nameFromDb);
-
-                                items.Add(new FeedbackItem
-                                {
-                                    id = rdr.GetInt32("id"),
-                                    dateSubmitted = dt.ToString("yyyy-MM-ddTHH:mm:ss"),
-                                    isAnonymous = isAnon,
-                                    displayName = displayName,
-                                    message = rdr.IsDBNull(rdr.GetOrdinal("message")) ? "" : rdr.GetString("message"),
-                                    promptId = rdr.GetInt32("prompt_id"),
-                                    promptText = rdr.IsDBNull(rdr.GetOrdinal("question_text")) ? "" : rdr.GetString("question_text"),
-                                    weekStartIso = wk.HasValue ? wk.Value.ToString("yyyy-MM-dd") : ""
-                                });
-                            }
-                        }
-                    }
+                    var items = FetchFeedbackItems(con, offset, pageSize, null);
 
                     return new FeedbackListResult
                     {
@@ -474,6 +446,130 @@ namespace ProjectTemplate
             {
                 return new { error = "error", detail = ex.Message };
             }
+        }
+
+        // NEW: Filtered feedback endpoint
+        // dateFrom / dateTo in "yyyy-MM-dd" ISO format; promptId <= 0 means "any".
+        [WebMethod(EnableSession = true)]
+        [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
+        public object GetFilteredFeedback(string dateFrom, string dateTo, int promptId, int page, int pageSize)
+        {
+            // Require admin
+            if (!(Session["isAdmin"] is bool isAdmin && isAdmin))
+                return new { error = "unauthorized" };
+
+            // Input normalization
+            if (page <= 0) page = 1;
+            if (pageSize <= 0) pageSize = 100;
+            if (pageSize > 500) pageSize = 500;
+            int offset = (page - 1) * pageSize;
+
+            DateTime fromDt;
+            bool hasFrom = DateTime.TryParseExact(dateFrom, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out fromDt);
+            DateTime toDt;
+            bool hasTo = DateTime.TryParseExact(dateTo, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out toDt);
+
+            try
+            {
+                using (MySqlConnection con = new MySqlConnection(getConString()))
+                {
+                    con.Open();
+
+                    // Build dynamic WHERE clause safely.
+                    var whereParts = new List<string>();
+                    if (hasFrom) whereParts.Add("f.date_submitted >= @from");
+                    if (hasTo) whereParts.Add("f.date_submitted <= @to");
+                    if (promptId > 0) whereParts.Add("f.prompt_id = @pid");
+                    string whereSql = whereParts.Count > 0 ? ("WHERE " + string.Join(" AND ", whereParts)) : string.Empty;
+
+                    // Total count
+                    int total = 0;
+                    using (var cnt = new MySqlCommand($@"SELECT COUNT(*) FROM Feedback f {whereSql};", con))
+                    {
+                        if (hasFrom) cnt.Parameters.AddWithValue("@from", fromDt);
+                        if (hasTo) cnt.Parameters.AddWithValue("@to", toDt.AddDays(1).AddSeconds(-1)); // include entire end day
+                        if (promptId > 0) cnt.Parameters.AddWithValue("@pid", promptId);
+                        total = Convert.ToInt32(cnt.ExecuteScalar());
+                    }
+
+                    var items = FetchFeedbackItems(con, offset, pageSize, cmd =>
+                    {
+                        // Inject WHERE and parameters for item query.
+                        cmd.CommandText = cmd.CommandText.Replace("/*WHERE*/", whereSql);
+                        if (hasFrom) cmd.Parameters.AddWithValue("@from", fromDt);
+                        if (hasTo) cmd.Parameters.AddWithValue("@to", toDt.AddDays(1).AddSeconds(-1));
+                        if (promptId > 0) cmd.Parameters.AddWithValue("@pid", promptId);
+                    });
+
+                    return new FeedbackListResult
+                    {
+                        totalCount = total,
+                        items = items
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                return new { error = "error", detail = ex.Message };
+            }
+        }
+
+        // Helper to fetch feedback rows with shared mapping logic.
+        private List<FeedbackItem> FetchFeedbackItems(MySqlConnection con, int offset, int limit, Action<MySqlCommand> customize)
+        {
+            var items = new List<FeedbackItem>();
+
+            string baseSql =
+                @"SELECT f.id,
+                         f.date_submitted,
+                         f.is_anonymous,
+                         u.username,
+                         f.message,
+                         f.prompt_id,
+                         p.question_text,
+                         p.date_posted AS week_start
+                  FROM Feedback f
+                  LEFT JOIN Users u ON u.id = f.user_id
+                  LEFT JOIN Prompts p ON p.id = f.prompt_id
+                  /*WHERE*/
+                  ORDER BY f.date_submitted DESC
+                  LIMIT @limit OFFSET @offset;";
+
+            using (var cmd = new MySqlCommand(baseSql, con))
+            {
+                cmd.Parameters.AddWithValue("@limit", limit);
+                cmd.Parameters.AddWithValue("@offset", offset);
+
+                customize?.Invoke(cmd);
+
+                using (var rdr = cmd.ExecuteReader())
+                {
+                    while (rdr.Read())
+                    {
+                        bool isAnon = rdr.GetBoolean("is_anonymous");
+                        DateTime dt = rdr.GetDateTime("date_submitted");
+                        DateTime? wk = rdr.IsDBNull(rdr.GetOrdinal("week_start"))
+                            ? (DateTime?)null : rdr.GetDateTime("week_start");
+
+                        string nameFromDb = rdr.IsDBNull(rdr.GetOrdinal("username")) ? null : rdr.GetString("username");
+                        string displayName = isAnon ? "Anonymous" :
+                            (string.IsNullOrWhiteSpace(nameFromDb) ? "(unknown user)" : nameFromDb);
+
+                        items.Add(new FeedbackItem
+                        {
+                            id = rdr.GetInt32("id"),
+                            dateSubmitted = dt.ToString("yyyy-MM-ddTHH:mm:ss"),
+                            isAnonymous = isAnon,
+                            displayName = displayName,
+                            message = rdr.IsDBNull(rdr.GetOrdinal("message")) ? "" : rdr.GetString("message"),
+                            promptId = rdr.GetInt32("prompt_id"),
+                            promptText = rdr.IsDBNull(rdr.GetOrdinal("question_text")) ? "" : rdr.GetString("question_text"),
+                            weekStartIso = wk.HasValue ? wk.Value.ToString("yyyy-MM-dd") : ""
+                        });
+                    }
+                }
+            }
+            return items;
         }
     }
 }

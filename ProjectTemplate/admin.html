@@ -9,15 +9,18 @@
     <script src="admin.js" defer></script>
 </head>
 
-<body style="align-items: flex-start;"></bodystyle>>
+<body style="align-items: flex-start;">
     <div class="dashboard">
         <h1>Admin Dashboard</h1>
-        <h2>Week Date</h2>
-       <p id="weekly-prompt">Prompt of the Week</p>
+        <h2 id="week-timeframe"></h2>
+        <p id="weekly-prompt">Loading prompt...</p>
+
         <table>
             <thead>
                 <tr>
                     <th>Date Received</th>
+                    <th>User</th>
+                    <th>Prompt</th>
                     <th>Message</th>
                 </tr>
             </thead>
