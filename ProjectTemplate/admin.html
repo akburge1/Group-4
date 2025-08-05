@@ -12,8 +12,25 @@
 <body style="align-items: flex-start;">
     <div class="dashboard">
         <h1>Admin Dashboard</h1>
-        <h2 id="week-timeframe"></h2>
-        <p id="weekly-prompt">Loading prompt...</p>
+        <h2 id="week-timeframe">Week Not Loaded...</h2>
+        <p id="weekly-prompt">Loading Prompt...</p>
+
+        <div class="filter-container">
+            <label for="date-from">From:</label>
+            <input type="date" id="date-from">
+
+            <label for="date-to">To:</label>
+            <input type="date" id="date-to">
+
+            <label for="prompt-id">Prompt ID:</label>
+            <input type="number" id="prompt-id" placeholder="0 = all">
+
+            <div class="filter-buttons">
+                <button id="filter-btn">Apply Filter</button>
+                <button id="clear-filter-btn">Clear</button>
+            </div>
+        </div>
+
 
         <table>
             <thead>

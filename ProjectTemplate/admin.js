@@ -1,85 +1,91 @@
+
+
 async function fetchWeeklyPrompt() {
-    try {
-        const res = await fetch("/ProjectServices.asmx/GetCurrentPrompt", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: "{}"
-        });
+    const res = await fetch("/ProjectServices.asmx/GetCurrentPrompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+    });
 
-        const data = await res.json();
-        const prompt = data.d;
+    const data = await res.json();
+    const prompt = data.d;
 
-        if (prompt) {
-            document.getElementById("weekly-prompt").textContent = prompt.text;
-            document.getElementById("week-timeframe").textContent =
-                `Week starting ${prompt.weekStartIso}`;
-        } else {
-            document.getElementById("weekly-prompt").textContent = "No prompt available.";
-        }
-    } catch (err) {
-        console.error("Error fetching weekly prompt:", err);
-        document.getElementById("weekly-prompt").textContent = "Error loading prompt.";
+    if (prompt) {
+        document.getElementById("weekly-prompt").textContent = prompt.text;
+        document.getElementById("week-timeframe").textContent =
+            `Week starting ${prompt.weekStartIso}`;
+    } else {
+        document.getElementById("weekly-prompt").textContent = "No prompt available.";
     }
 }
 
 async function fetchFeedback() {
-    try {
-        const res = await fetch("/ProjectServices.asmx/GetAllFeedback", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ page: 1, pageSize: 50 })
-        });
+    const res = await fetch("/ProjectServices.asmx/GetAllFeedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ page: 1, pageSize: 50 })
+    });
+    const data = await res.json();
+    const feedback = data.d?.items || [];
+    renderFeedback(feedback);
+}
 
-        const data = await res.json();
+async function fetchFilteredFeedback(dateFrom, dateTo, promptId) {
+    const res = await fetch("/ProjectServices.asmx/GetFilteredFeedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            dateFrom: dateFrom || "",
+            dateTo: dateTo || "",
+            promptId: promptId ? parseInt(promptId) : 0,
+            page: 1,
+            pageSize: 50
+        })
+    });
+    const data = await res.json();
+    const feedback = data.d?.items || [];
+    renderFeedback(feedback);
+}
 
-        if (data.d?.error === "unauthorized") {
-            document.getElementById("feedback-list").innerHTML =
-                `<tr><td colspan="3">Unauthorized — please log in as admin.</td></tr>`;
-            return;
-        }
+function renderFeedback(feedback) {
+    const tbody = document.getElementById("feedback-list");
+    tbody.innerHTML = "";
 
-        const feedback = data.d?.items || [];
+    if (!feedback.length) {
+        const row = document.createElement("tr");
+        row.innerHTML = `<td colspan="4">No feedback found.</td>`;
+        tbody.appendChild(row);
+        return;
+    }
 
-        const tbody = document.getElementById("feedback-list");
-        tbody.innerHTML = "";
-
-        if (feedback.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="3">No feedback available.</td></tr>`;
-            return;
-        }
-
-        feedback.forEach(item => {
-            const formattedDate = formatDate(item.dateSubmitted);
-            const row = document.createElement("tr");
-            row.innerHTML = `
-                <td>${formattedDate}</td>
+    feedback.forEach(item => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+                <td>${item.dateSubmitted}</td>
                 <td>${item.displayName}</td>
                 <td>${item.promptText}</td>
                 <td>${item.message}</td>
             `;
-            tbody.appendChild(row);
-        });
-    } catch (err) {
-        console.error("Error fetching feedback:", err);
-        document.getElementById("feedback-list").innerHTML =
-            `<tr><td colspan="3">Error loading feedback.</td></tr>`;
-    }
-}
-
-function formatDate(dateString) {
-    if (!dateString) return "";
-    const date = new Date(dateString);
-    if (isNaN(date)) return dateString;
-    return date.toLocaleString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit"
+        tbody.appendChild(row);
     });
 }
 
 document.addEventListener("DOMContentLoaded", () => {
     fetchWeeklyPrompt();
     fetchFeedback();
+
+    // Filter button click
+    document.getElementById("filter-btn").addEventListener("click", () => {
+        const dateFrom = document.getElementById("date-from").value;
+        const dateTo = document.getElementById("date-to").value;
+        const promptId = document.getElementById("prompt-id").value;
+        fetchFilteredFeedback(dateFrom, dateTo, promptId);
+    });
+
+    // Clear filters button click
+    document.getElementById("clear-filter-btn").addEventListener("click", () => {
+        document.getElementById("date-from").value = "";
+        document.getElementById("date-to").value = "";
+        document.getElementById("prompt-id").value = "";
+        fetchFeedback();
+    });
 });
