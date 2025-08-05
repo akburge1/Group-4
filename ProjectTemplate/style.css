@@ -8,19 +8,23 @@ body {
     overflow: hidden;
     margin: 0;
 }
-input, select, textarea {
-  font-family: Arial, sans-serif;
+
+input,
+select,
+textarea {
+    font-family: Arial, sans-serif;
 }
 
 h1 {
     text-align: center;
-    font-size: 3em;
+    font-size: 2em;
     margin-bottom: 30px;
 }
 
 h2 {
     text-align: center;
-    font-size: 2em;
+    font-size: 1.2em;
+    margin-bottom: 10px;
 }
 
 .login-container {
@@ -99,6 +103,7 @@ button:hover {
 .feedback-form button {
     margin-top: 25px;
     padding: 12px;
+    width: 100%;
     background-color: cornflowerblue;
     color: white;
     font-size: 1rem;
@@ -141,24 +146,12 @@ button:hover {
 /* ========== Dashboard ========== */
 .dashboard {
     width: 95%;
-    max-width:  1100px;
-    margin: 0 auto;
+    max-width: 1100px;
+    margin: 40px auto;
     padding: 30px;
     background: white;
     border-radius: 8px;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-}
-
-.dashboard h1 {
-    text-align: center;
-    font-size: 2em;
-    margin-bottom: 15px;
-}
-
-.dashboard h2 {
-    text-align: center;
-    font-size: 1em;
-    margin-bottom: 10px;
 }
 
 .dashboard p {
@@ -228,6 +221,7 @@ button:hover {
     border: 1px solid #ccc;
     font-size: 0.9rem;
 }
+
 .filter-buttons {
     display: flex;
     gap: 10px;

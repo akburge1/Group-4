@@ -38,16 +38,20 @@ function displayPrompt() {
 
 function handleFormSubmission() {
     const form = document.querySelector(".feedback-form");
+    const errorDiv = document.getElementById("feedback-error");
     if (!form) return;
 
     form.addEventListener("submit", function (e) {
         e.preventDefault();
 
+        errorDiv.style.display = "none";
+        errorDiv.textContent = "";
         const feedback = (document.getElementById("feedback")?.value || "").trim();
         const isAnonymous = document.getElementById("isAnonymous")?.checked ?? true;
 
         if (!feedback) {
-            alert("Please enter feedback before submitting.");
+            errorDiv.textContent = "Feedback message cannot be empty.";
+            errorDiv.style.display = "block";
             return;
         }
 

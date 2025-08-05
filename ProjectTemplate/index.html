@@ -1,11 +1,13 @@
 ﻿<!DOCTYPE html>
 <html lang="en">
+
 <head>
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<title>User Dashboard</title>
 	<link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
 	<div class="dashboard">
 		<h1>User Dashboard</h1>
@@ -18,7 +20,9 @@
 		<form class="feedback-form">
 
 			<label for="feedback">Feedback:</label>
-			<textarea id="feedback" name="feedback" rows="5" placeholder="Type your response here..." required></textarea>
+			<textarea id="feedback" name="feedback" rows="5" placeholder="Type your response here..."
+				required></textarea>
+			<div id="feedback-error" style="color:red; display:none; margin-top:5px;"></div>
 
 			<div class="form-row anon-row">
 				<input type="checkbox" id="isAnonymous" name="isAnonymous" checked />
@@ -33,4 +37,5 @@
 
 	<script src="index.js"></script>
 </body>
+
 </html>
