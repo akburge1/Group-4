@@ -3,10 +3,12 @@ body {
     background: cornflowerblue;
     height: 100vh;
     display: flex;
+    flex-direction: column; /* Changed to column for vertical stacking */
     justify-content: center;
     align-items: center;
     overflow: auto;
     margin: 0;
+    gap: 20px; /* Space between logo and container */
 }
 
 input,
@@ -268,4 +270,19 @@ button {
     position: relative;
     z-index: 1;
     margin-top: 4px;
+}
+
+/* ---- Login page logo ---- */
+.login-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+}
+
+.site-logo {
+    width: 650px;
+    height: auto;
+    display: block;
 }
