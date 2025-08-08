@@ -24,15 +24,16 @@
             <label for="date-to">To:</label>
             <input type="date" id="date-to">
 
-            <label for="prompt-id">Prompt ID:</label>
-            <input type="number" id="prompt-id" placeholder="0 = all">
+            <label for="prompt-select">Prompt:</label>
+            <select id="prompt-select">
+                <option value="0">All prompts</option>
+            </select>
 
             <div class="filter-buttons">
                 <button id="filter-btn">Apply Filter</button>
                 <button id="clear-filter-btn">Clear</button>
             </div>
         </div>
-
 
         <table>
             <thead>
@@ -45,7 +46,7 @@
             </thead>
             <tbody id="feedback-list">
                 <tr>
-                    <td colspan="3">Loading feedback...</td>
+                    <td colspan="4">Loading feedback...</td>
                 </tr>
             </tbody>
         </table>

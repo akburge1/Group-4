@@ -5,7 +5,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    overflow: hidden;
+    overflow: auto;
     margin: 0;
 }
 
@@ -45,10 +45,10 @@ h2 {
     box-sizing: border-box;
 }
 
-.prompt-box h2 {
-    margin-top: 0;
-    width: 100%;
-}
+    .prompt-box h2 {
+        margin-top: 0;
+        width: 100%;
+    }
 
 input {
     width: 100%;
@@ -67,55 +67,54 @@ button {
     transition: opacity .15s;
 }
 
-button:hover {
-    opacity: .8;
-}
+    button:hover {
+        opacity: .8;
+    }
 
-/* ========== Feedback Form ========== */
 .feedback-form {
     display: flex;
     flex-direction: column;
 }
 
-.feedback-form label {
-    margin-top: 15px;
-    margin-bottom: 5px;
-    color: #333;
-    font-weight: bold;
-}
+    .feedback-form label {
+        margin-top: 15px;
+        margin-bottom: 5px;
+        color: #333;
+        font-weight: bold;
+    }
 
-.feedback-form input,
-.feedback-form textarea {
-    padding: 10px;
-    border-radius: 8px;
-    border: 1px solid #ccc;
-    font-size: 1rem;
-    resize: vertical;
-    width: 100%;
-    max-width: 550px;
-}
+    .feedback-form input,
+    .feedback-form textarea {
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid #ccc;
+        font-size: 1rem;
+        resize: vertical;
+        width: 100%;
+        max-width: 550px;
+    }
 
-.feedback-form textarea {
-    min-height: 120px;
-    max-width: 100%;
-}
+    .feedback-form textarea {
+        min-height: 120px;
+        max-width: 100%;
+    }
 
-.feedback-form button {
-    margin-top: 25px;
-    padding: 12px;
-    width: 100%;
-    background-color: cornflowerblue;
-    color: white;
-    font-size: 1rem;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: opacity .15s;
-}
+    .feedback-form button {
+        margin-top: 25px;
+        padding: 12px;
+        width: 100%;
+        background-color: cornflowerblue;
+        color: white;
+        font-size: 1rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: opacity .15s;
+    }
 
-.feedback-form button:hover {
-    background-color: #0c53b7;
-}
+        .feedback-form button:hover {
+            background-color: #0c53b7;
+        }
 
 .form-row {
     margin-top: 14px;
@@ -143,7 +142,6 @@ button:hover {
     margin: 0;
 }
 
-/* ========== Dashboard ========== */
 .dashboard {
     width: 95%;
     max-width: 1100px;
@@ -152,49 +150,47 @@ button:hover {
     background: white;
     border-radius: 8px;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    overflow: visible;
 }
 
-.dashboard p {
-    text-align: center;
-    font-size: 1.2em;
-}
+    .dashboard p {
+        text-align: center;
+        font-size: 1.2em;
+    }
 
-.dashboard table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 20px;
-    background-color: whitesmoke;
-}
+    .dashboard table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+        background-color: whitesmoke;
+    }
 
-/* Column sizes */
-.dashboard th:first-child,
-.dashboard td:first-child {
-    width: 120px;
-}
+    .dashboard th:first-child,
+    .dashboard td:first-child {
+        width: 120px;
+    }
 
-.dashboard th,
-.dashboard td {
-    padding: 8px;
-    text-align: left;
-    border-bottom: 1px solid #ddd;
-}
+    .dashboard th,
+    .dashboard td {
+        padding: 8px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+    }
 
-.dashboard th {
-    background-color: cornflowerblue;
-    color: white;
-}
+    .dashboard th {
+        background-color: cornflowerblue;
+        color: white;
+    }
 
-.dashboard tr:nth-child(odd) {
-    background-color: rgba(150, 212, 212, 0.4);
-    background-color: #e8f0fe;
-}
+    .dashboard tr:nth-child(odd) {
+        background-color: #e8f0fe;
+    }
 
-.dashboard tr:hover {
-    opacity: 0.8;
-}
+    .dashboard tr:hover {
+        opacity: 0.8;
+    }
 
-/* ========== Filters ========== */
-
+/* Filters */
 .filter {
     display: flex;
     flex-wrap: wrap;
@@ -209,34 +205,67 @@ button:hover {
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 }
 
-.filter label {
-    font-weight: bold;
-    color: #333;
+    .filter label {
+        font-weight: bold;
+        color: #333;
+    }
+
+    .filter input[type="date"],
+    .filter input[type="number"] {
+        padding: 6px 8px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+        font-size: 0.9rem;
+    }
+
+    .filter button:hover {
+        opacity: 0.8;
+    }
+
+/* Grid for filter area */
+.filter-container {
+    position: relative;
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    grid-row-gap: 12px;
+    grid-column-gap: 10px;
+    align-items: center;
+    margin-bottom: 20px;
+    background: #f5f7fa;
+    padding: 12px 16px 16px 16px;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    overflow: visible;
+    z-index: 0;
 }
 
-.filter input[type="date"],
-.filter input[type="number"] {
-    padding: 6px 8px;
-    border-radius: 4px;
-    border: 1px solid #ccc;
-    font-size: 0.9rem;
+    .filter-container label {
+        font-weight: bold;
+        color: #333;
+        justify-self: start;
+    }
+
+    .filter-container input[type="date"],
+    .filter-container select {
+        padding: 6px 8px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+        font-size: 0.9rem;
+    }
+
+#prompt-select {
+    width: 100%;
+    max-width: 100%;
+    position: relative;
+    z-index: 3;
+    margin-bottom: 14px;
 }
 
 .filter-buttons {
+    grid-column: 1 / -1;
     display: flex;
     gap: 10px;
-}
-
-.filter-buttons button {
-    padding: 7px 14px;
-    background: cornflowerblue;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: opacity .15s;
-}
-
-.filter button:hover {
-    opacity: 0.8;
+    position: relative;
+    z-index: 1;
+    margin-top: 4px;
 }

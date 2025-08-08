@@ -345,6 +345,46 @@ namespace ProjectTemplate
             }
         }
 
+        // ► NEW: Prompt list for admin filter dropdown
+        [WebMethod(EnableSession = true)]
+        [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
+        public List<PromptInfo> GetPromptList()
+        {
+            // Require admin
+            if (!(Session["isAdmin"] is bool isAdmin && isAdmin))
+                return new List<PromptInfo>(); // empty on unauthorized
+
+            var list = new List<PromptInfo>();
+            try
+            {
+                using (var con = new MySqlConnection(getConString()))
+                using (var cmd = new MySqlCommand(
+                    @"SELECT id, question_text
+                      FROM Prompts
+                      ORDER BY id ASC;", con))
+                {
+                    con.Open();
+                    using (var rdr = cmd.ExecuteReader())
+                    {
+                        while (rdr.Read())
+                        {
+                            list.Add(new PromptInfo
+                            {
+                                id = rdr.GetInt32("id"),
+                                text = rdr.GetString("question_text"),
+                                weekStartIso = null
+                            });
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Swallow and return empty list to keep the UI resilient
+            }
+            return list;
+        }
+
         // Binds feedback to THIS WEEK'S stamped prompt; prevents duplicate submits per user/prompt.
         [WebMethod(EnableSession = true)]
         [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
@@ -448,8 +488,7 @@ namespace ProjectTemplate
             }
         }
 
-        // NEW: Filtered feedback endpoint
-        // dateFrom / dateTo in "yyyy-MM-dd" ISO format; promptId <= 0 means "any".
+        // Filtered feedback endpoint (unchanged)
         [WebMethod(EnableSession = true)]
         [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
         public object GetFilteredFeedback(string dateFrom, string dateTo, int promptId, int page, int pageSize)
