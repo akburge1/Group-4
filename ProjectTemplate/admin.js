@@ -117,6 +117,21 @@ function renderFeedback(feedback) {
     });
 }
 
+function handleLogout() {
+    fetch("/ProjectServices.asmx/Logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+    })
+        .then(res => res.json())
+        .then(() => {
+            window.location.href = "login.html";
+        })
+        .catch(err => {
+            console.error("Logout failed:", err);
+            window.location.href = "login.html"; // fallback
+        });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     fetchWeeklyPrompt();
     fetchPromptList();

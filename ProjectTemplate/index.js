@@ -98,7 +98,21 @@ function handleFormSubmission() {
             });
     });
 }
-
+function handleLogout() {
+    fetch("/ProjectServices.asmx/Logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+    })
+        .then(res => res.json())
+        .then(() => {
+            // After logging out, redirect to login page
+            window.location.href = "login.html";
+        })
+        .catch(err => {
+            console.error("Logout failed:", err);
+            alert("An error occurred while logging out.");
+        });
+}
 
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -109,5 +123,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (anonCheckbox) {
         anonCheckbox.addEventListener("change", toggleNameField);
         toggleNameField(); // set initial state
+        const logoutBtn = document.querySelector(".logout-btn");
+        if (logoutBtn) {
+            logoutBtn.addEventListener("click", handleLogout);
+        }
     }
 });

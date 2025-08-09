@@ -9,9 +9,11 @@
 </head>
 
 <body>
+
+	<button id="logout-btn" class="logout-btn">Log Out</button>
+
 	<div class="dashboard">
 		<h1>User Dashboard</h1>
-
 		<div class="prompt-box">
 			<h2>This Week’s Prompt</h2>
 			<p id="weekly-prompt">Loading prompt...</p>
@@ -21,7 +23,7 @@
 
 			<label for="feedback">Feedback:</label>
 			<textarea id="feedback" name="feedback" rows="5" placeholder="Type your response here..."
-				required></textarea>
+					  required></textarea>
 			<div id="feedback-error" style="color:red; display:none; margin-top:5px;"></div>
 
 			<div class="form-row anon-row">
