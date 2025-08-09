@@ -25,7 +25,7 @@ function displayPrompt() {
             const prompt = data?.d;
             if (prompt && prompt.text) {
                 promptElement.textContent = prompt.text;
-                currentPromptId = prompt.id; // store for use in submit
+                currentPromptId = prompt.id;
             } else {
                 promptElement.textContent = "Unable to load prompt.";
             }

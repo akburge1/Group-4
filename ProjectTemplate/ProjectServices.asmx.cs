@@ -1,5 +1,4 @@
-﻿// ProjectServices.asmx.cs
-using MySql.Data.MySqlClient;
+﻿using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -18,14 +17,14 @@ namespace ProjectTemplate
     public class FeedbackItem
     {
         public int id { get; set; }
-        public string dateSubmitted { get; set; }   // ISO-like string
-        public string displayName { get; set; }     // "Anonymous" if isAnonymous = true
+        public string dateSubmitted { get; set; }
+        public string displayName { get; set; }
         public bool isAnonymous { get; set; }
         public string message { get; set; }
 
         public int promptId { get; set; }
         public string promptText { get; set; }
-        public string weekStartIso { get; set; }    // from Prompts.date_posted
+        public string weekStartIso { get; set; }
     }
 
     public class FeedbackListResult
@@ -55,10 +54,10 @@ namespace ProjectTemplate
         // Try to resolve the Eastern/Detroit zone
         private static TimeZoneInfo GetEasternTz()
         {
-            try { return TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"); } // Windows
+            try { return TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"); }
             catch
             {
-                try { return TimeZoneInfo.FindSystemTimeZoneById("America/Detroit"); }   // Linux
+                try { return TimeZoneInfo.FindSystemTimeZoneById("America/Detroit"); }
                 catch { return TimeZoneInfo.Utc; }
             }
         }
@@ -69,16 +68,13 @@ namespace ProjectTemplate
             var tz = GetEasternTz();
             var nowEastern = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
 
-            // ISO week: Monday=1 ... Sunday=7
-            int dayOfWeek = (int)nowEastern.DayOfWeek; // Sunday=0 ... Saturday=6
-            int isoDow = dayOfWeek == 0 ? 7 : dayOfWeek; // map Sunday(0) -> 7
-            var monday = nowEastern.Date.AddDays(-(isoDow - 1)); // back to Monday
+            int dayOfWeek = (int)nowEastern.DayOfWeek;
+            int isoDow = dayOfWeek == 0 ? 7 : dayOfWeek;
+            var monday = nowEastern.Date.AddDays(-(isoDow - 1));
             return new DateTime(monday.Year, monday.Month, monday.Day, 0, 0, 0, DateTimeKind.Unspecified);
         }
 
         // Resolve the prompt for the current week.
-        // Stateful: stamps the chosen prompt into Prompts.date_posted = <weekStart> and sets is_used = 1.
-        // Uses a MySQL named lock so only one request stamps per week.
         private PromptInfo ResolveOrStampWeeklyPrompt(MySqlConnection con)
         {
             DateTime weekStartLocal = GetCurrentWeekStartEastern();
@@ -117,7 +113,6 @@ namespace ProjectTemplate
                 {
                     try
                     {
-                        // Re-check inside the lock
                         using (var recheck = new MySqlCommand(
                             @"SELECT id, question_text
                               FROM Prompts
@@ -215,7 +210,6 @@ namespace ProjectTemplate
                 else
                 {
                     // Couldn't acquire lock; another request is doing the stamping.
-                    // Small wait and read the stamped row.
                     System.Threading.Thread.Sleep(200);
 
                     using (var waitRead = new MySqlCommand(
@@ -302,7 +296,7 @@ namespace ProjectTemplate
             {
                 Session["userID"] = userId;
                 Session["isAdmin"] = isAdmin;
-                Session.Timeout = 30;  // minutes
+                Session.Timeout = 30;
                 return isAdmin ? "admin" : "employee";
             }
 
@@ -326,7 +320,7 @@ namespace ProjectTemplate
             }
         }
 
-        // Weekly "current prompt" (stateful stamping; random selection; wraps after full cycle)
+        // Weekly "current prompt"
         [WebMethod(EnableSession = true)]
         [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
         public PromptInfo GetCurrentPrompt()
@@ -345,14 +339,14 @@ namespace ProjectTemplate
             }
         }
 
-        // ► NEW: Prompt list for admin filter dropdown
+        // Prompt list for admin filter dropdown
         [WebMethod(EnableSession = true)]
         [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
         public List<PromptInfo> GetPromptList()
         {
             // Require admin
             if (!(Session["isAdmin"] is bool isAdmin && isAdmin))
-                return new List<PromptInfo>(); // empty on unauthorized
+                return new List<PromptInfo>();
 
             var list = new List<PromptInfo>();
             try
@@ -401,7 +395,6 @@ namespace ProjectTemplate
                 {
                     con.Open();
 
-                    // Resolve/stamp this week's prompt
                     var prompt = ResolveOrStampWeeklyPrompt(con);
                     if (prompt == null)
                         return "no_current_prompt";
@@ -444,7 +437,6 @@ namespace ProjectTemplate
         }
 
         // ADMIN-ONLY: Read ALL feedback (paged) with prompt context.
-        // Returns { totalCount, items: [ ... ] }
         [WebMethod(EnableSession = true)]
         [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
         public object GetAllFeedback(int page, int pageSize)
@@ -453,7 +445,6 @@ namespace ProjectTemplate
             if (!(Session["isAdmin"] is bool isAdmin && isAdmin))
                 return new { error = "unauthorized" };
 
-            // Normalize paging
             if (page <= 0) page = 1;
             if (pageSize <= 0) pageSize = 100;
             if (pageSize > 500) pageSize = 500;
@@ -488,7 +479,7 @@ namespace ProjectTemplate
             }
         }
 
-        // Filtered feedback endpoint (unchanged)
+        // Filtered feedback endpoint
         [WebMethod(EnableSession = true)]
         [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
         public object GetFilteredFeedback(string dateFrom, string dateTo, int promptId, int page, int pageSize)
@@ -497,7 +488,6 @@ namespace ProjectTemplate
             if (!(Session["isAdmin"] is bool isAdmin && isAdmin))
                 return new { error = "unauthorized" };
 
-            // Input normalization
             if (page <= 0) page = 1;
             if (pageSize <= 0) pageSize = 100;
             if (pageSize > 500) pageSize = 500;
@@ -514,14 +504,12 @@ namespace ProjectTemplate
                 {
                     con.Open();
 
-                    // Build dynamic WHERE clause safely.
                     var whereParts = new List<string>();
                     if (hasFrom) whereParts.Add("f.date_submitted >= @from");
                     if (hasTo) whereParts.Add("f.date_submitted <= @to");
                     if (promptId > 0) whereParts.Add("f.prompt_id = @pid");
                     string whereSql = whereParts.Count > 0 ? ("WHERE " + string.Join(" AND ", whereParts)) : string.Empty;
 
-                    // Total count
                     int total = 0;
                     using (var cnt = new MySqlCommand($@"SELECT COUNT(*) FROM Feedback f {whereSql};", con))
                     {
@@ -533,7 +521,6 @@ namespace ProjectTemplate
 
                     var items = FetchFeedbackItems(con, offset, pageSize, cmd =>
                     {
-                        // Inject WHERE and parameters for item query.
                         cmd.CommandText = cmd.CommandText.Replace("/*WHERE*/", whereSql);
                         if (hasFrom) cmd.Parameters.AddWithValue("@from", fromDt);
                         if (hasTo) cmd.Parameters.AddWithValue("@to", toDt.AddDays(1).AddSeconds(-1));
@@ -553,7 +540,7 @@ namespace ProjectTemplate
             }
         }
 
-        // Helper to fetch feedback rows with shared mapping logic.
+        // Helper to fetch feedback rows
         private List<FeedbackItem> FetchFeedbackItems(MySqlConnection con, int offset, int limit, Action<MySqlCommand> customize)
         {
             var items = new List<FeedbackItem>();

@@ -1,19 +1,11 @@
-﻿// DatabaseHelper.cs
-using System;
+﻿using System;
 using System.Data;
 using MySql.Data.MySqlClient;
 
 namespace ProjectTemplate
 {
-    /// <summary>
-    /// Centralized helper for DB operations that are *not* business-specific.
-    /// </summary>
     public static class DatabaseHelper
     {
-        /// <summary>
-        /// Attempts to authenticate a user by comparing the supplied plain text password
-        /// to the stored password. Returns true on success.
-        /// </summary>
         public static bool TryAuthenticate(
             string connectionString,
             string username,

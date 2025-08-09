@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const result = await response.json();
-            const role = result.d;  // ASMX wraps response in .d
+            const role = result.d;
 
             if (role === 'invalid') {
                 errorMessage.textContent = 'Invalid username or password.';

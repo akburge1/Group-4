@@ -3,12 +3,12 @@ body {
     background: cornflowerblue;
     height: 100vh;
     display: flex;
-    flex-direction: column; /* Changed to column for vertical stacking */
+    flex-direction: column;
     justify-content: center;
     align-items: center;
     overflow: auto;
     margin: 0;
-    gap: 20px; /* Space between logo and container */
+    gap: 20px;
 }
 
 input,
